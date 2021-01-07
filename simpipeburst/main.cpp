@@ -98,6 +98,8 @@ void test1(char* inputfile, char* outcata)
 void test3(char* inputfile, char* file)
 {
 	char* Inputfile = inputfile;
+	char *random_file = "out/ky2/random_sim_result.csv";
+	char *testdata_file = "out/ky2/testdata.csv";
 	pipeburst pipe(Inputfile);
 	pipe.set_timeparam(3600);//设置时间步长
 	pipe.initialize();
@@ -110,8 +112,9 @@ void test3(char* inputfile, char* file)
 	runtime = (double)(end - begin) / 1000;
 	std::cout << "run time:" << runtime << "s" << endl;
 
+	//pipe.random_leak_sim(file,random_file);
 
-	pipe.random_leak_sim(file);
+	pipe.test_data(file, testdata_file);
 }
 
 /*
@@ -230,9 +233,9 @@ bool ifrepetition(int num, vector<int> list)
 */
 int main()
 {
-	char* Inputfile = "data/Kentucky/ky4.inp";
-	char* Outcata = "out/ky4/";
-	char* cluster_file = "out/ky4/mod_cluster.csv";
+	char* Inputfile = "data/Kentucky/ky2.inp";
+	char* Outcata = "out/ky2/";
+	char* cluster_file = "out/ky2/mod_cluster.csv";
 
 	//Inputfile = "data/Changshucity/cs11021.inp";
 	//Outcata = "out/cs/";

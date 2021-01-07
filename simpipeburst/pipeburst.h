@@ -60,12 +60,13 @@ public:
 	void get_nodexy();
 	void print_nodexy(char * file_path);
 	void outfile_nodexy(char * out_file, char * marx_file);
-	void random_leak_sim(char* cluster_file);
+	void random_leak_sim(char* cluster_file, char * random_file);
 	/*根据提供的各区域随机节点列表进行漏损模拟,返回值为两次嵌套的字典：
 	*Z1：{ ID1:{P1，P2，...}, ID2:{P1，P2，...}, ... }， Z2：{ ID1:{P1，P2，...}, ID2:{P1，P2，...}, ... }
 	*Z:区域编号； ID：节点ID； Pi:i第i步长时刻节点压力值 
 	*/
 	map<int, map<string, vector<vector<float>>>> random_leak(map<int, vector<string>> leak_list);
+	void test_data(char * cluster_file, char * testdata_file);
 	vector<int> random_list(vector<string> temp_cluster); //生成随机数组
 	bool ifrepetition(int num, vector<int> list); //判断随机数是否重复
 private:
@@ -421,7 +422,7 @@ void pipeburst::outfile_nodexy(char * out_file, char * marx_file)
 	std::cout << " write to nodexy file succeeded!" << endl;
 }
 
-void pipeburst::random_leak_sim(char * cluster_file)
+void pipeburst::random_leak_sim(char * cluster_file, char * random_file)
 {
 	//读取聚类结果CSV文件
 	ifstream infile(cluster_file, ios::in);
@@ -497,11 +498,43 @@ void pipeburst::random_leak_sim(char * cluster_file)
 	map<int, map<string, vector<vector<float>>>> double_pressure_random;
 	double_pressure_random = random_leak(leak_list);
 
+	//计算随机模拟压差
+	//map<int, map<string, vector<float>>> random_pressure_change;
+	
+	ofstream file;
+	file.open(random_file, ios::out);
+	file << "leak_area_number," << "ID,";
+	for (int i = 0; i < timestep.size(); i++)
+	{
+		if(i< timestep.size()-1) file << timestep[i] << ",";
+		else file << timestep[i] << endl;
+	}
 
+	map<int, map<string, vector<vector<float>>>>::iterator it_leak_zone;
+	for (it_leak_zone = double_pressure_random.begin(); it_leak_zone != double_pressure_random.end(); it_leak_zone++)
+	{
+		int leak_number = it_leak_zone->first;             //获取当前漏损区域序号
+		map<string, vector<vector<float>>> node_inf_list = it_leak_zone->second;    //获取当前区域节点信息字典
 
+		map<string, vector<vector<float>>>::iterator it_node_inf_list;
+		for (it_node_inf_list = node_inf_list.begin(); it_node_inf_list != node_inf_list.end(); it_node_inf_list++)
+		{
+			string node_id = it_node_inf_list->first;             //获取当前节点ID
+			vector<vector<float>> node_inf = it_node_inf_list->second;    //获取当前节点压力信息
+			//vector<float> random_pressure_change;
+			file << leak_number << "," << node_id << ",";
+			for (int i = 0; i < node_inf.size(); i++)
+			{
+				//random_pressure_change.push_back(node_inf[i][1] - node_inf[i][0]);
+				if (i < node_inf.size() - 1) file << node_inf[i][1] - node_inf[i][0] << ",";
+				else file << node_inf[i][1] - node_inf[i][0] << endl;
+			}			
+		}
+	}
+	file.close();
 	//debug...
-	int i = 0;
-	i++;
+	int k = 0;
+	k++;
 }
 
 /*根据提供的各区域随机节点列表进行漏损模拟,返回值为两次嵌套的字典：
@@ -581,6 +614,97 @@ map<int, map<string, vector<vector<float>>>> pipeburst::random_leak(map<int, vec
 	
 	return after_pressure_random_zone;
 }
+
+//生成测试数据（全节点）
+void pipeburst::test_data(char * cluster_file, char * testdata_file)
+{
+	//读取聚类结果CSV文件
+	ifstream infile(cluster_file, ios::in);
+	string linestr;
+	vector<vector<string>> strarray;   //存储csv数据，二维数组
+	while (getline(infile, linestr))
+	{
+		//cout << linestr << endl;
+		stringstream ss(linestr);
+		string str;
+		vector<string> linearray;
+		while (getline(ss, str, ','))//按逗号分隔
+			linearray.push_back(str);
+		strarray.push_back(linearray);
+	}
+
+
+	vector<string> node_id;            //存放节点ID
+	vector<int> node_cluster;          //存放类别序号
+	int len = strarray.size();
+	for (int i = 1; i < len; i++)
+	{
+		int cluster = stoi(strarray[i][1]);
+		if (cluster != -1)
+		{
+			node_id.push_back(strarray[i][0]);
+			node_cluster.push_back(stoi(strarray[i][1]));
+		}
+	}
+	
+	map<int, vector<string>> cluster_result;  //聚类结果字典 {类别序号：[id1,id2,...],...}
+
+	int len_cluster = node_id.size();
+	int temp = node_cluster[0];
+	vector<string> temp_map;
+	for (int i = 0; i < len_cluster; i++)
+	{
+		if (node_cluster[i] == temp)
+		{
+			temp_map.push_back(node_id[i]);
+		}
+		else
+		{
+			cluster_result[node_cluster[i - 1]] = temp_map;
+
+			temp_map.clear();
+			temp_map.push_back(node_id[i]);
+
+			temp = node_cluster[i];
+		}
+	}
+
+	map<int, map<string, vector<vector<float>>>> double_pressure_random;
+	double_pressure_random = random_leak(cluster_result);
+
+	ofstream file;
+	file.open(testdata_file, ios::out);
+	file << "leak_area_number," << "ID,";
+	for (int i = 0; i < timestep.size(); i++)
+	{
+		if (i < timestep.size() - 1) file << timestep[i] << ",";
+		else file << timestep[i] << endl;
+	}
+
+	map<int, map<string, vector<vector<float>>>>::iterator it_leak_zone;
+	for (it_leak_zone = double_pressure_random.begin(); it_leak_zone != double_pressure_random.end(); it_leak_zone++)
+	{
+		int leak_number = it_leak_zone->first;             //获取当前漏损区域序号
+		map<string, vector<vector<float>>> node_inf_list = it_leak_zone->second;    //获取当前区域节点信息字典
+
+		map<string, vector<vector<float>>>::iterator it_node_inf_list;
+		for (it_node_inf_list = node_inf_list.begin(); it_node_inf_list != node_inf_list.end(); it_node_inf_list++)
+		{
+			string node_id = it_node_inf_list->first;             //获取当前节点ID
+			vector<vector<float>> node_inf = it_node_inf_list->second;    //获取当前节点压力信息
+			//vector<float> random_pressure_change;
+			file << leak_number << "," << node_id << ",";
+			for (int i = 0; i < node_inf.size(); i++)
+			{
+				//random_pressure_change.push_back(node_inf[i][1] - node_inf[i][0]);
+				if (i < node_inf.size() - 1) file << node_inf[i][1] - node_inf[i][0] << ",";
+				else file << node_inf[i][1] - node_inf[i][0] << endl;
+			}
+		}
+	}
+	file.close();
+}
+
 //生成随机数组
 vector<int> pipeburst::random_list(vector<string> temp_cluster)
 {
@@ -625,5 +749,6 @@ bool pipeburst::ifrepetition(int num, vector<int> list)
 	}
 	return false;
 }
+
 
 
