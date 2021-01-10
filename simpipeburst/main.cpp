@@ -85,7 +85,7 @@ void test1(char* inputfile, char* outcata)
 	std::cout << "run time:" << runtime << "s" << endl;
 	pipe.out_file(pressure_after_delay, pipe.after_pressure);	//输出至CSV文件
 
-	pipe.pressure_change_matrix(pipe.before_pressure, pipe.after_pressure); //计算压变矩阵
+	pipe.pressure_change(pipe.before_pressure, pipe.after_pressure); //计算压变矩阵
 	pipe.out_file(pressure_change, pipe.change_pressure); //输出至CSV文件
 	
 	pipe.get_nodexy(); //读取文件，获取节点坐标
@@ -98,8 +98,8 @@ void test1(char* inputfile, char* outcata)
 void test3(char* inputfile, char* file)
 {
 	char* Inputfile = inputfile;
-	char *random_file = "out/ky2/random_sim_result.csv";
-	char *testdata_file = "out/ky2/testdata.csv";
+	char *random_file = "out/ky8/random_sim_result.csv";
+	char *testdata_file = "out/ky8/testdata.csv";
 	pipeburst pipe(Inputfile);
 	pipe.set_timeparam(3600);//设置时间步长
 	pipe.initialize();
@@ -114,133 +114,43 @@ void test3(char* inputfile, char* file)
 
 	//pipe.random_leak_sim(file,random_file);
 
-	pipe.test_data(file, testdata_file);
+	pipe.all_leak_sim(file, testdata_file);
 }
 
-/*
-void test2(char* file) 
+
+void test2(char* inputfile, char* cluster_file)
 {
-	ifstream infile(file, ios::in);
-	string linestr;
-	vector<vector<string>> strarray;
-	while (getline(infile, linestr))
-	{
-		//cout << linestr << endl;
-		stringstream ss(linestr);
-		string str;
-		vector<string> linearray;
-		while (getline(ss, str, ','))//按逗号分隔
-			linearray.push_back(str);
-		strarray.push_back(linearray);
-	}
+	char* Inputfile = inputfile;
+	char *random_file = "out/ky4/random_sim_result.csv";
+	char *testdata_file = "out/ky4/change_matrix.csv";
+	pipeburst pipe(Inputfile);
+	pipe.set_timeparam(3600);//设置时间步长
+	pipe.initialize();
+
+	clock_t begin, end;
+	double runtime;
+	begin = clock();
 	
-	vector<string> node_id;
-	vector<int> node_cluster;
-	int len = strarray.size();
-	for (int i = 1; i < len; i++)
-	{
-		int cluster = stoi(strarray[i][1]);
-		if (cluster != -1)
-		{
-			node_id.push_back(strarray[i][0]);
-			node_cluster.push_back(stoi(strarray[i][1]));
-		}
-	}
-	map<int, vector<string>> cluster_result;
-
-	int len_cluster = node_id.size();
-	int temp = node_cluster[0];
-	vector<string> temp_map;
-	for (int i = 0; i < len_cluster; i++)
-	{
-		if (node_cluster[i] == temp)
-		{
-			//cluster_result[node_cluster[i]] = node_id[i];
-			temp_map.push_back(node_id[i]);
-		}
-		else
-		{
-			cluster_result[node_cluster[i - 1]] = temp_map;
-			
-			temp_map.clear();
-			temp_map.push_back(node_id[i]);
-
-			temp = node_cluster[i];
-		}
-	}
-
-	map<int, vector<string>>::iterator it;
-	int cluster_number = cluster_result.size();
-	vector<vector<int>>leak_list;
-	for (it = cluster_result.begin(); it!= cluster_result.end(); it++)
-	{
-		int cluster_value = it->first;
-		vector<string> temp_cluster = it->second;
-		int temp_number = temp_cluster.size();
-		vector<int>leak_list_temp = random_list_leak(temp_cluster);
-		leak_list.push_back(leak_list_temp);
-	}
-
-
-	int j = 0;
-	j++;
+	pipe.get_change__matrix(cluster_file, testdata_file);
+	
+	end = clock();
+	runtime = (double)(end - begin) / 1000;
+	std::cout << "run time:" << runtime << "s" << endl;
+	
+	//pipe.get_change__matrix(cluster_file, testdata_file);
+	
 }
 
-vector<int> random_list_leak(vector<string> temp_cluster)
-{
-	int number = temp_cluster.size();
-	int leak_number = 0;
-	if (number <= 5)
-	{
-		leak_number = number;
-	}
-	else
-	{
-		leak_number = 5 + (int)sqrt(number - 25);
-		
-	}
-
-	srand((unsigned int)time(0));
-	vector<int> leak_list;
-	int tmp = 0;
-	int temp;
-
-	for (int i = 0; i < leak_number; i++) {
-		do 
-		{
-			temp = rand() % number;
-			if (ifrepetition(temp, leak_list))continue;
-			else break;
-		} while (1);
-		leak_list.push_back(temp);
-		cout << temp << ", ";
-	}
-	cout << endl;
-	return leak_list;
-}
-
-bool ifrepetition(int num, vector<int> list)
-{
-	int size = list.size();
-	if (size == 0)return false;
-	for (int i = 0; i < size; i++)
-	{
-		if (num == list[i])return true;
-	}
-	return false;
-}
-
-*/
 int main()
 {
-	char* Inputfile = "data/Kentucky/ky2.inp";
-	char* Outcata = "out/ky2/";
-	char* cluster_file = "out/ky2/mod_cluster.csv";
+	char* Inputfile = "data/Kentucky/ky8.inp";
+	char* Outcata = "out/ky8/";
+	char* cluster_file = "out/ky8/mod_cluster.csv";
 
 	//Inputfile = "data/Changshucity/cs11021.inp";
 	//Outcata = "out/cs/";
 	//test1(Inputfile, Outcata);
-	//test2(cluster_file);
+	//test2(Inputfile,cluster_file);
 	test3(Inputfile, cluster_file);
 
 	

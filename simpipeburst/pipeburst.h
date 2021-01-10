@@ -11,6 +11,7 @@
 #include <map>
 #include <random>
 #include <cmath>
+#include<numeric>
 using namespace std;
 
 
@@ -55,7 +56,7 @@ public:
 	void sim_before_delay();   //正常延时模拟
 	void sim_after_delay(bool if_log, char* log_file);    //爆管模拟
 	void out_file(char * file, vector<vector<float>> pressure);//将压力值数据写入CSV文件中
-	void pressure_change_matrix(vector<vector<float>> be_pressure,vector<vector<float>> af_pressure); //计算压变矩阵
+	void pressure_change(vector<vector<float>> be_pressure,vector<vector<float>> af_pressure); //计算压变信息
 	void set_timeparam(long step, long duration);
 	void get_nodexy();
 	void print_nodexy(char * file_path);
@@ -66,9 +67,14 @@ public:
 	*Z:区域编号； ID：节点ID； Pi:i第i步长时刻节点压力值 
 	*/
 	map<int, map<string, vector<vector<float>>>> random_leak(map<int, vector<string>> leak_list);
-	void test_data(char * cluster_file, char * testdata_file);
+	void all_leak_sim(char * cluster_file, char * testdata_file);
 	vector<int> random_list(vector<string> temp_cluster); //生成随机数组
 	bool ifrepetition(int num, vector<int> list); //判断随机数是否重复
+
+	void get_change__matrix(char * cluster_file, char * out_matrix_file);
+
+	vector<vector<float>> ndoe_normal_sim(vector<string> node_list_);
+	vector<vector<vector<float>>> node_leak_sim(vector<string> node_list_, vector<vector<float>> normal_pressure);
 private:
 	char *outputfile;          //二进制输出文件，可忽略
 	char *inputfile;           //管网文件
@@ -254,7 +260,7 @@ void pipeburst::sim_after_delay(bool if_log=false,char* log_file=NULL)
 	std::cout << "sim_after_delay succeeded!" << endl;
 }
 
-void pipeburst::pressure_change_matrix(vector<vector<float>> be_pressure, vector<vector<float>> af_pressure)
+void pipeburst::pressure_change(vector<vector<float>> be_pressure, vector<vector<float>> af_pressure)
 {
 	cout << "开始计算压变矩阵..." << endl;
 	int col1, col2; //列大小
@@ -616,7 +622,7 @@ map<int, map<string, vector<vector<float>>>> pipeburst::random_leak(map<int, vec
 }
 
 //生成测试数据（全节点）
-void pipeburst::test_data(char * cluster_file, char * testdata_file)
+void pipeburst::all_leak_sim(char * cluster_file, char * testdata_file)
 {
 	//读取聚类结果CSV文件
 	ifstream infile(cluster_file, ios::in);
@@ -697,8 +703,8 @@ void pipeburst::test_data(char * cluster_file, char * testdata_file)
 			for (int i = 0; i < node_inf.size(); i++)
 			{
 				//random_pressure_change.push_back(node_inf[i][1] - node_inf[i][0]);
-				if (i < node_inf.size() - 1) file << node_inf[i][1] - node_inf[i][0] << ",";
-				else file << node_inf[i][1] - node_inf[i][0] << endl;
+				if (i < node_inf.size() - 1) file << (node_inf[i][1] - node_inf[i][0])/fabs(node_inf[i][1])*100 << ",";
+				else file << (node_inf[i][1] - node_inf[i][0]) / fabs(node_inf[i][1])*100 << endl;
 			}
 		}
 	}
@@ -750,5 +756,203 @@ bool pipeburst::ifrepetition(int num, vector<int> list)
 	return false;
 }
 
+void pipeburst::get_change__matrix(char * cluster_file, char * out_matrix_file)
+{
+	//读取聚类结果CSV文件
+	ifstream infile(cluster_file, ios::in);
+	string linestr;
+	vector<vector<string>> strarray;   //存储csv数据，二维数组
+	while (getline(infile, linestr))
+	{
+		stringstream ss(linestr);
+		string str;
+		vector<string> linearray;
+		while (getline(ss, str, ','))//按逗号分隔
+			linearray.push_back(str);
+		strarray.push_back(linearray);
+	}
+
+	vector<string> node_list_;
+	map<string, int> node_cluster;
+	
+	ofstream file;
+	file.open(out_matrix_file, ios::out);
+	file << "cluster,ID";
+	for (int i = 1; i < strarray.size(); i++)
+	{
+		node_list_.push_back(strarray[i][0]);
+		node_cluster[strarray[i][0]] = stoi(strarray[i][1]);
+		file << strarray[i][0] << ",";
+	}
+	file << endl;
+
+	vector<vector<float>> normal_pressure;
+	normal_pressure=ndoe_normal_sim(node_list_);
+	vector<float> mean_1;
+	for (int i = 0; i < node_list_.size(); i++)
+	{
+		float sum_alltime = 0.0;
+		for (int j = 0; j < timestep.size(); j++)
+		{
+			sum_alltime += normal_pressure[i][j];
+		}
+		float mean_temp = sum_alltime / timestep.size();
+		mean_1.push_back(mean_temp);
+	}
+
+	vector<vector<vector<float>>> leak_pressure_for_one;
+	 vector<float> pressure_for_onenode;
+	 leak_pressure_for_one = node_leak_sim(node_list_, normal_pressure);
+	
+	 vector<vector<float>> change_matrix;
+
+	 for (int i = 0; i < node_list_.size(); i++)
+	 {
+		 file << strarray[i+1][1] << "," << node_list_[i] << ",";
+		 vector<float> change_for_one;
+		 for (int j = 0; j < node_list_.size(); j++)
+		 {
+			 float sum_alltime = 0.0;
+			 for (int k = 0; k < timestep.size(); k++)
+			 {
+				 sum_alltime += leak_pressure_for_one[i][k][j];
+			 }
+			 float mean_2 = sum_alltime / timestep.size();
+
+			 float change_temp = mean_1[j] - mean_2;
+			 //float change_temp = (mean_1[j] - mean_2)/fabs(mean_1[j]);
+			 if (j < node_list_.size() - 1)
+			 {
+				 file << change_temp << ",";
+			 }
+			 else
+			 {
+				 file << change_temp << endl;
+			 }
+			 change_for_one.push_back(change_temp);
+		 }
+		 change_matrix.push_back(change_for_one);
+	 }
+
+	 file.close();
+
+	 int o = 0;
+	 o++;
+
+}
+
+vector<vector<float>> pipeburst::ndoe_normal_sim(vector<string> node_list_)
+{
+
+	vector<vector<float>> normal_pressure;
+	std::cout << "开始正常水力模拟..." << endl;
+
+
+	ENopen(inputfile, report, outputfile); //打开文件
+
+	ENsettimeparam(EN_DURATION, time_duration);
+	ENsettimeparam(EN_HYDSTEP, time_step);
+	ENsettimeparam(EN_REPORTSTEP, time_step);
+
+	for (int i = 0; i < node_list_.size(); i++)
+	{
+		int node_index;
+		string node_id = node_list_[i];
+		char* node_id_ = (char*)node_id.data();
+		ENgetnodeindex(node_id_, &node_index);
+		ENopenH();
+		ENinitH(0);
+		long t, tstep;
+		long t_check = 0;
+		vector<float> pressure_temp;
+		do
+		{
+			ENrunH(&t);
+			if (t != t_check)
+			{
+				ENnextH(&tstep);
+				continue;
+			}
+			float pressure;
+			ENgetnodevalue(node_index, EN_PRESSURE, &pressure);
+			pressure_temp.push_back(pressure);
+			ENnextH(&tstep);
+			t_check += time_step;
+		} while (tstep > 0);
+		ENcloseH();
+		normal_pressure.push_back(pressure_temp);
+		printf("%.2lf%%\r", (i+1) * 100.0 / node_list_.size());//进度条
+	}
+	std::cout << endl;
+	ENclose();
+	std::cout << "sim_before_delay succeeded!" << endl;
+	return normal_pressure;
+}
+
+vector<vector<vector<float>>> pipeburst::node_leak_sim(vector<string> node_list_, vector<vector<float>> normal_pressure)
+{
+	ENopen(inputfile, report, outputfile); //打开文件
+
+	ENsettimeparam(EN_DURATION, time_duration);
+	ENsettimeparam(EN_HYDSTEP, time_step);
+	ENsettimeparam(EN_REPORTSTEP, time_step);
+
+	float fEmitterCoeff;
+	int size_ndoe = node_list_.size();
+	int size_time = timestep.size();
+	int size_para = size_ndoe * size_time;
+	vector<vector<vector<float>>> pressure_node_for_allone;//pressure_node_for_allone[allnode][timestep][allnode]
+	for (int i = 0; i < size_ndoe; i++)
+	{
+		int node_index;
+		string node_id = node_list_[i];
+		char* node_id_ = (char*)node_id.data();
+		ENgetnodeindex(node_id_, &node_index);
+
+		ENopenH();
+		ENinitH(0);
+		long t = 0, tstep;
+		long t_check = 0;
+		int j = 0;
+		vector<vector<float>> one_node_pressure;
+		do
+		{
+			printf("%.3lf%%\r", (i * size_time + j) * 100.0 / size_para);//进度条
+			if (normal_pressure[i][j] < 0)//判断压力值是否为负,若为负则压力值不变
+			{
+				fEmitterCoeff = 0;
+			}
+			else fEmitterCoeff = (float)sFlow* pow(normal_pressure[i][j], 0.5);  //计算喷射系数
+
+			ENsetnodevalue(node_index, EN_EMITTER, fEmitterCoeff);
+			ENrunH(&t);
+			if (t != t_check)
+			{
+				ENnextH(&tstep);
+				continue;
+			}
+			vector<float> pressure_temp;
+			for (int k = 0; k < size_ndoe; k++)
+			{
+				float pressure;
+				int node_index_temp;
+				string node_id_temp = node_list_[k];
+				char* node_id_temp_ = (char*)node_id_temp.data();
+				ENgetnodeindex(node_id_temp_, &node_index_temp);
+				ENgetnodevalue(node_index_temp, EN_PRESSURE, &pressure);
+				pressure_temp.push_back(pressure);
+			}						
+			ENsetnodevalue(node_index, EN_EMITTER, 0);
+			one_node_pressure.push_back(pressure_temp);
+			ENnextH(&tstep);
+			t_check += time_step;
+			j++;
+		} while (tstep > 0);
+		ENcloseH();
+		pressure_node_for_allone.push_back(one_node_pressure);
+	}
+
+	return pressure_node_for_allone;
+}
 
 
