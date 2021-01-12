@@ -141,6 +141,18 @@ void test2(char* inputfile, char* cluster_file)
 	
 }
 
+void test4(char* inputfile, char* cluster_file)
+{
+	char* Inputfile = inputfile;
+	char *check_point = "out/ky4/check_point.csv";
+	char *testdata_file = "out/ky4/change_matrix.csv";
+	pipeburst pipe(Inputfile);
+	pipe.set_timeparam(600);//设置时间步长
+	pipe.initialize();
+
+	pipe.get_test(check_point);
+}
+
 int main()
 {
 	char* Inputfile = "data/Kentucky/ky8.inp";
@@ -151,7 +163,8 @@ int main()
 	//Outcata = "out/cs/";
 	//test1(Inputfile, Outcata);
 	//test2(Inputfile,cluster_file);
-	test3(Inputfile, cluster_file);
+	//test3(Inputfile, cluster_file);
+	test4(Inputfile, cluster_file);
 
 	
 }

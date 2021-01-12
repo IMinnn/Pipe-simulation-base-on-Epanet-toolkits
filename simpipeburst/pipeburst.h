@@ -75,6 +75,14 @@ public:
 
 	vector<vector<float>> ndoe_normal_sim(vector<string> node_list_);
 	vector<vector<vector<float>>> node_leak_sim(vector<string> node_list_, vector<vector<float>> normal_pressure);
+
+	void get_test(char * file);
+
+	void out_check_normal(char * file_path, vector<vector<float>> pressure, vector<string> node_list_, vector<int> node_cluster_);
+
+	void one_point_muti_time(vector<vector<string>>check_point_list, vector<vector<string>>leak_inf, vector<vector<float>>be_pressure);
+
+	//vector<vector<float>> check_point_normal_sim(vector<string> node_list_);
 private:
 	char *outputfile;          //二进制输出文件，可忽略
 	char *inputfile;           //管网文件
@@ -954,5 +962,189 @@ vector<vector<vector<float>>> pipeburst::node_leak_sim(vector<string> node_list_
 
 	return pressure_node_for_allone;
 }
+
+void pipeburst::get_test(char * file)
+{
+	//读取聚类结果CSV文件
+	ifstream infile(file, ios::in);
+	string linestr;
+	vector<vector<string>> strarray;   //存储csv数据，二维数组
+	while (getline(infile, linestr))
+	{
+		stringstream ss(linestr);
+		string str;
+		vector<string> linearray;
+		while (getline(ss, str, ','))//按逗号分隔
+			linearray.push_back(str);
+		strarray.push_back(linearray);
+	}
+
+	strarray.erase(strarray.begin());//删除第一个元素
+
+	vector<string> node_list_; 
+	vector<int> node_cluster_;
+	map<string, int> node_cluster;
+
+	for (int i = 0; i < strarray.size(); i++)
+	{
+		node_list_.push_back(strarray[i][0]);
+		node_cluster_.push_back(stoi(strarray[i][1]));
+		node_cluster[strarray[i][0]] = stoi(strarray[i][1]);
+	}
+
+	vector<vector<float>> normal_pressure;
+	normal_pressure = ndoe_normal_sim(node_list_);
+
+	//char* file_check_point_normal = "out/ky4/check_normal.csv";
+	//out_check_normal(file_check_point_normal, normal_pressure, node_list_, node_cluster_); //输出至CSV文件
+
+
+	//读取聚类结果CSV文件
+	char * in_file_1point_muti_time = "out/ky4/1point_muti_time.csv";
+	ifstream infile_1(in_file_1point_muti_time, ios::in);
+	string linestr_1;
+	vector<vector<string>> strarray_1;   //存储csv数据，二维数组
+	while (getline(infile_1, linestr_1))
+	{
+		stringstream ss(linestr_1);
+		string str;
+		vector<string> linearray;
+		while (getline(ss, str, ','))//按逗号分隔
+			linearray.push_back(str);
+		strarray_1.push_back(linearray);
+	}
+
+	strarray_1.erase(strarray_1.begin());//删除第一个元素
+	
+	//vector<vector<float>> leak_pressure;
+	//normal_pressure = ndoe_normal_sim(node_list_);
+
+	one_point_muti_time(strarray, strarray_1, normal_pressure);
+}
+
+void pipeburst::out_check_normal(char * file_path, vector<vector<float>> pressure, vector<string> node_list_, vector<int> node_cluster_)
+{
+	ofstream file;
+	file.open(file_path, ios::out);
+
+	int len = timestep.size();
+	file << "Cluster,";
+	file << "ID,";
+	for (int i = 0; i < len - 1; i++)
+	{
+		file << timestep[i] << ",";
+	}
+	file << timestep[len - 1] << endl;
+
+	for (int i = 0; i < node_list_.size(); i++)
+	{
+		file << node_cluster_[i]<<","<< node_list_[i] << ",";
+		for (int j = 0; j < len; j++)
+		{
+			file << pressure[i][j] << ",";
+		}
+		file << endl;
+	}
+
+	file.close();
+
+	std::cout << " write to file succeeded!" << endl;
+}
+
+void pipeburst::one_point_muti_time(vector<vector<string>> check_point_list, vector<vector<string>> leak_inf, vector<vector<float>>be_pressure)
+{
+	for (int i = 0; i < leak_inf.size(); i++)
+	{
+		string out_file_1 = "out/ky4/leak_";
+		string out_file_2 = leak_inf[i][0];
+		string out_file_3 = ".csv";
+		string out_file = "out/ky4/leak_" + leak_inf[i][0] + ".csv";
+
+		ofstream file;
+		file.open(out_file, ios::out);
+
+		file << "leak_ndoe," << "leak_time," << "if_cluster," << "check_id,";
+
+		for (int k = 0; k < timestep.size() - 1; k++)
+		{
+			file << timestep[k] << ",";
+		}
+		file << timestep[timestep.size() - 1] << endl;
+
+		ENopen(inputfile, report, outputfile); //打开文件
+
+		ENsettimeparam(EN_DURATION, time_duration);
+		ENsettimeparam(EN_HYDSTEP, time_step);
+		ENsettimeparam(EN_REPORTSTEP, time_step);
+
+		float fEmitterCoeff = 0;;
+
+		char* leak_node = (char*)leak_inf[i][0].data();
+		int leak_index;
+		ENgetnodeindex(leak_node, &leak_index);
+		long leak_time = atol(leak_inf[i][2].data());
+		int leak_cluster = atol(leak_inf[i][1].data());
+
+		vector<vector<float>> leak_pressure;
+
+		for (int j = 0; j < check_point_list.size(); j++)
+		{
+			char* check_id = (char*)check_point_list[j][0].data();
+			bool if_cluster = 0;
+			if (atol(check_point_list[j][1].data()) == leak_cluster)
+			{
+				if_cluster = 1;
+			}
+			file << leak_node << "," << leak_time << "," << if_cluster << "," << check_id << ",";
+
+			int check_index;
+			ENgetnodeindex(check_id, &check_index);
+
+			ENopenH();
+			ENinitH(0);
+			long t = 0, tstep;
+			long t_check = 0;
+			int x = 0;
+			vector<float>leak_pressure_temp;
+			do
+			{
+
+				if (leak_time == t)
+				{
+
+					if (be_pressure[j][x] < 0)//判断压力值是否为负,若为负则压力值不变
+					{
+						fEmitterCoeff = 0;
+					}
+					else fEmitterCoeff = (float)sFlow* pow(be_pressure[j][x], 0.5);  //计算喷射系数
+				}
+				ENsetnodevalue(leak_index, EN_EMITTER, fEmitterCoeff);
+				ENrunH(&t);
+				if (t != t_check)
+				{
+					ENnextH(&tstep);
+					continue;
+				}
+				float pressure;
+				ENgetnodevalue(check_index, EN_PRESSURE, &pressure);
+				file << pressure << ",";
+				ENsetnodevalue(leak_index, EN_EMITTER, 0);
+				leak_pressure_temp.push_back(pressure);
+				ENnextH(&tstep);
+				t_check += time_step;
+				x++;
+			} while (tstep > 0);
+			file << endl;
+			ENcloseH();
+			leak_pressure.push_back(leak_pressure_temp);
+			//printf("%.2lf%%\r", i * 100.0 / node_num);//进度条
+		}
+
+		file.close();
+	}
+
+}
+
+
 
 
