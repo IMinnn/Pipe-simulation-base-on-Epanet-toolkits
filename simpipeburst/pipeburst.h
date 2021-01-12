@@ -995,8 +995,8 @@ void pipeburst::get_test(char * file)
 	vector<vector<float>> normal_pressure;
 	normal_pressure = ndoe_normal_sim(node_list_);
 
-	//char* file_check_point_normal = "out/ky4/check_normal.csv";
-	//out_check_normal(file_check_point_normal, normal_pressure, node_list_, node_cluster_); //输出至CSV文件
+	char* file_check_point_normal = "out/ky4/check_normal.csv";
+	out_check_normal(file_check_point_normal, normal_pressure, node_list_, node_cluster_); //输出至CSV文件
 
 
 	//读取聚类结果CSV文件
@@ -1058,12 +1058,12 @@ void pipeburst::one_point_muti_time(vector<vector<string>> check_point_list, vec
 		string out_file_1 = "out/ky4/leak_";
 		string out_file_2 = leak_inf[i][0];
 		string out_file_3 = ".csv";
-		string out_file = "out/ky4/leak_" + leak_inf[i][0] + ".csv";
+		string out_file = "out/ky4/leak_" + leak_inf[i][0] +"_"+ leak_inf[i][2] + ".csv";
 
 		ofstream file;
 		file.open(out_file, ios::out);
 
-		file << "leak_ndoe," << "leak_time," << "if_cluster," << "check_id,";
+		file << "leak_ndoe," << "leak_time," << "if_cluster," <<"cluster,"<< "check_id,";
 
 		for (int k = 0; k < timestep.size() - 1; k++)
 		{
@@ -1090,12 +1090,13 @@ void pipeburst::one_point_muti_time(vector<vector<string>> check_point_list, vec
 		for (int j = 0; j < check_point_list.size(); j++)
 		{
 			char* check_id = (char*)check_point_list[j][0].data();
+			int check_cluster = stoi(check_point_list[j][1]);
 			bool if_cluster = 0;
 			if (atol(check_point_list[j][1].data()) == leak_cluster)
 			{
 				if_cluster = 1;
 			}
-			file << leak_node << "," << leak_time << "," << if_cluster << "," << check_id << ",";
+			file << leak_node << "," << leak_time << "," << if_cluster << "," << check_cluster << "," << check_id << ",";
 
 			int check_index;
 			ENgetnodeindex(check_id, &check_index);
@@ -1137,10 +1138,10 @@ void pipeburst::one_point_muti_time(vector<vector<string>> check_point_list, vec
 			file << endl;
 			ENcloseH();
 			leak_pressure.push_back(leak_pressure_temp);
-			//printf("%.2lf%%\r", i * 100.0 / node_num);//进度条
 		}
 
 		file.close();
+		printf("%.2lf%%\r", i * 100.0 / leak_inf.size());//进度条
 	}
 
 }

@@ -155,9 +155,9 @@ void test4(char* inputfile, char* cluster_file)
 
 int main()
 {
-	char* Inputfile = "data/Kentucky/ky8.inp";
-	char* Outcata = "out/ky8/";
-	char* cluster_file = "out/ky8/mod_cluster.csv";
+	char* Inputfile = "data/Kentucky/ky4.inp";
+	char* Outcata = "out/ky4/";
+	char* cluster_file = "out/ky4/mod_cluster.csv";
 
 	//Inputfile = "data/Changshucity/cs11021.inp";
 	//Outcata = "out/cs/";
