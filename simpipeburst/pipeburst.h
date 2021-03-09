@@ -82,7 +82,7 @@ public:
 
 	void one_point_muti_time(vector<vector<string>>check_point_list, vector<vector<string>>leak_inf, vector<vector<float>>be_pressure);
 
-	//vector<vector<float>> check_point_normal_sim(vector<string> node_list_);
+	void random_leak_node(char* clusterfile);
 private:
 	char *outputfile;          //二进制输出文件，可忽略
 	char *inputfile;           //管网文件
@@ -893,7 +893,7 @@ vector<vector<float>> pipeburst::ndoe_normal_sim(vector<string> node_list_)
 	}
 	std::cout << endl;
 	ENclose();
-	std::cout << "sim_before_delay succeeded!" << endl;
+	//std::cout << "sim_before_delay succeeded!" << endl;
 	return normal_pressure;
 }
 
@@ -992,15 +992,15 @@ void pipeburst::get_test(char * file)
 		node_cluster[strarray[i][0]] = stoi(strarray[i][1]);
 	}
 
-	vector<vector<float>> normal_pressure;
-	normal_pressure = ndoe_normal_sim(node_list_);
+	//vector<vector<float>> normal_pressure;
+	//normal_pressure = ndoe_normal_sim(node_list_);
 
-	char* file_check_point_normal = "out/ky4/check_normal.csv";
-	out_check_normal(file_check_point_normal, normal_pressure, node_list_, node_cluster_); //输出至CSV文件
+	//char* file_check_point_normal = "out/ky4/check_normal.csv";
+	//out_check_normal(file_check_point_normal, normal_pressure, node_list_, node_cluster_); //输出至CSV文件
 
 
-	//读取聚类结果CSV文件
-	char * in_file_1point_muti_time = "out/ky4/1point_muti_time.csv";
+	//读取爆管点CSV文件
+	char * in_file_1point_muti_time = "out/ky4/random_leak.csv";
 	ifstream infile_1(in_file_1point_muti_time, ios::in);
 	string linestr_1;
 	vector<vector<string>> strarray_1;   //存储csv数据，二维数组
@@ -1015,9 +1015,12 @@ void pipeburst::get_test(char * file)
 	}
 
 	strarray_1.erase(strarray_1.begin());//删除第一个元素
-	
-	//vector<vector<float>> leak_pressure;
-	//normal_pressure = ndoe_normal_sim(node_list_);
+
+	vector<vector<float>> normal_pressure;
+	normal_pressure = ndoe_normal_sim(node_list_);
+
+	char* file_check_point_normal = "out/ky4/check_normal.csv";
+	out_check_normal(file_check_point_normal, normal_pressure, node_list_, node_cluster_); //输出至CSV文件
 
 	one_point_muti_time(strarray, strarray_1, normal_pressure);
 }
@@ -1053,12 +1056,12 @@ void pipeburst::out_check_normal(char * file_path, vector<vector<float>> pressur
 
 void pipeburst::one_point_muti_time(vector<vector<string>> check_point_list, vector<vector<string>> leak_inf, vector<vector<float>>be_pressure)
 {
+	int size_1 = leak_inf.size();
+	int size_2 = check_point_list.size();
+	int size_3 = size_1 * size_2;
 	for (int i = 0; i < leak_inf.size(); i++)
 	{
-		string out_file_1 = "out/ky4/leak_";
-		string out_file_2 = leak_inf[i][0];
-		string out_file_3 = ".csv";
-		string out_file = "out/ky4/leak_" + leak_inf[i][0] +"_"+ leak_inf[i][2] + ".csv";
+		string out_file = "out/ky4/data_1/leak_" + leak_inf[i][0] +"_"+ leak_inf[i][2] + ".csv";
 
 		ofstream file;
 		file.open(out_file, ios::out);
@@ -1077,7 +1080,7 @@ void pipeburst::one_point_muti_time(vector<vector<string>> check_point_list, vec
 		ENsettimeparam(EN_HYDSTEP, time_step);
 		ENsettimeparam(EN_REPORTSTEP, time_step);
 
-		float fEmitterCoeff = 0;;
+		//float fEmitterCoeff = 0;
 
 		char* leak_node = (char*)leak_inf[i][0].data();
 		int leak_index;
@@ -1085,8 +1088,9 @@ void pipeburst::one_point_muti_time(vector<vector<string>> check_point_list, vec
 		long leak_time = atol(leak_inf[i][2].data());
 		int leak_cluster = atol(leak_inf[i][1].data());
 
-		vector<vector<float>> leak_pressure;
+		//vector<vector<float>> leak_pressure;
 
+	
 		for (int j = 0; j < check_point_list.size(); j++)
 		{
 			char* check_id = (char*)check_point_list[j][0].data();
@@ -1103,48 +1107,150 @@ void pipeburst::one_point_muti_time(vector<vector<string>> check_point_list, vec
 
 			ENopenH();
 			ENinitH(0);
-			long t = 0, tstep;
+			long t = 0, tstep = 0;
+			long next_time = 0;
 			long t_check = 0;
 			int x = 0;
-			vector<float>leak_pressure_temp;
+			//vector<float>leak_pressure_temp;
 			do
 			{
-
-				if (leak_time == t)
+				bool if_leak = false;
+				float fEmitterCoeff = 0;
+				if (leak_time == next_time)
 				{
-
+					if_leak = true;
 					if (be_pressure[j][x] < 0)//判断压力值是否为负,若为负则压力值不变
 					{
 						fEmitterCoeff = 0;
 					}
 					else fEmitterCoeff = (float)sFlow* pow(be_pressure[j][x], 0.5);  //计算喷射系数
+					
+					ENsetnodevalue(leak_index, EN_EMITTER, fEmitterCoeff);
 				}
-				ENsetnodevalue(leak_index, EN_EMITTER, fEmitterCoeff);
+				
+				
 				ENrunH(&t);
+				next_time = t;
 				if (t != t_check)
 				{
 					ENnextH(&tstep);
+					next_time += tstep;
 					continue;
 				}
 				float pressure;
 				ENgetnodevalue(check_index, EN_PRESSURE, &pressure);
 				file << pressure << ",";
-				ENsetnodevalue(leak_index, EN_EMITTER, 0);
-				leak_pressure_temp.push_back(pressure);
+				if (true == if_leak)
+				{
+					ENsetnodevalue(leak_index, EN_EMITTER, 0);
+				}
+				//leak_pressure_temp.push_back(pressure);
 				ENnextH(&tstep);
 				t_check += time_step;
 				x++;
+				next_time += tstep;
 			} while (tstep > 0);
 			file << endl;
 			ENcloseH();
-			leak_pressure.push_back(leak_pressure_temp);
+			//leak_pressure.push_back(leak_pressure_temp);
+			std::printf("%.2lf%%\r", (i * size_2 + j) * 100.0 / size_3);//进度条
 		}
 
 		file.close();
-		printf("%.2lf%%\r", i * 100.0 / leak_inf.size());//进度条
+		ENclose();
 	}
 
 }
+
+
+void pipeburst::random_leak_node(char * clusterfile)
+{
+	//读取聚类结果CSV文件
+	ifstream infile(clusterfile, ios::in);
+	string linestr;
+	vector<vector<string>> strarray;   //存储csv数据，二维数组
+	while (getline(infile, linestr))
+	{
+		stringstream ss(linestr);
+		string str;
+		vector<string> linearray;
+		while (getline(ss, str, ','))//按逗号分隔
+			linearray.push_back(str);
+		strarray.push_back(linearray);
+	}
+
+	strarray.erase(strarray.begin());//删除第一个元素
+
+	//vector<string> node_list_;
+	//vector<int> node_cluster_;
+	map<string, int> node_cluster;
+
+	for (int i = 0; i < strarray.size(); i++)
+	{
+		//node_list_.push_back(strarray[i][0]);
+		//node_cluster_.push_back(stoi(strarray[i][1]));
+		node_cluster[strarray[i][0]] = stoi(strarray[i][1]);
+	}
+
+	ENopen(inputfile, report, outputfile); //打开文件
+
+	ENsettimeparam(EN_DURATION, time_duration);
+	ENsettimeparam(EN_HYDSTEP, time_step);
+	ENsettimeparam(EN_REPORTSTEP, time_step);
+
+	
+	int number = 1200;
+
+	int node_size = strarray.size() - 1;
+	int time_size = timestep.size();
+
+	srand((unsigned int)time(0));
+	vector<int> node_index_list;  //从1开始
+	vector<int> time_index_list;  //从0开始
+
+	for (int i = 0; i < number; i++) {
+		
+		int temp_node = rand() % node_size + 1;
+		int temp_time = rand() % time_size;
+	
+		node_index_list.push_back(temp_node);
+		time_index_list.push_back(temp_time);
+		
+	}
+	
+	vector<long> leak_time;
+	vector<string> leak_node;
+	vector<int> leak_cluster;
+	for (int i = 0; i < number; i++)
+	{
+		leak_time.push_back(time_index_list[i]* time_step);
+		char temp_id[16];
+		ENgetnodeid(node_index_list[i], temp_id);
+		string temp_id_ = temp_id;
+		leak_node.push_back(temp_id);
+		map<string, int>::iterator it;
+		it = node_cluster.find(temp_id);
+		if (it != node_cluster.end())
+		{
+			leak_cluster.push_back(it->second);
+		}
+		else
+		{
+			leak_cluster.push_back(-1);
+		}
+	}
+
+	char* file_path = "out/ky4/random_leak.csv";
+	ofstream file;
+	file.open(file_path, ios::out);
+	file << "ID," << "Cluster," << "Time" << endl;
+	for (int i = 0; i < number; i++)
+	{
+		file << leak_node[i] << "," << leak_cluster[i] << "," << leak_time[i] << endl;
+	}
+	file.close();
+}
+
 
 
 

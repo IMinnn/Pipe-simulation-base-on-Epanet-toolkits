@@ -1,5 +1,6 @@
 #include "epanet2.h"
 #include "pipeburst.h"
+#include "Simpipeleak.h"
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -12,8 +13,7 @@
 #include <cmath>
 using namespace std;
 
-//vector<int> random_list_leak(vector<string> temp_cluster);
-//bool ifrepetition(int num, vector<int> list);
+
 
 void test1(char* inputfile, char* outcata) 
 {
@@ -25,11 +25,7 @@ void test1(char* inputfile, char* outcata)
 	//Inputfile = "data/Kentucky/ky4.inp"; //此模型无负压力值
 	//Inputfile = "data/ky8.inp";
 	Inputfile = inputfile;
-	if (!exists_test0(Inputfile))
-	{
-		cout << "inp file no exist" << endl;
-		return ;
-	}
+	
 
 	//输出
 	char* pressure_before_delay ="pressure_before_delay.csv";
@@ -144,13 +140,93 @@ void test2(char* inputfile, char* cluster_file)
 void test4(char* inputfile, char* cluster_file)
 {
 	char* Inputfile = inputfile;
-	char *check_point = "out/ky4/check_point.csv";
-	char *testdata_file = "out/ky4/change_matrix.csv";
-	pipeburst pipe(Inputfile);
-	pipe.set_timeparam(600);//设置时间步长
+	char* check_point = "out/ky4/check_point.csv";
+	char *pipe_inf = "out/ky4/pipe_cluster.csv";
+
+	long time_step = 600;
+	long time_duration = 15552000;
+	Simpipeleak pipe(Inputfile);
+	pipe.set_timeparam(600, 15552000);//设置时间步长为10min；周期为180天
+	//pipe.set_timeparam(3600, 864000);//
 	pipe.initialize();
 
-	pipe.get_test(check_point);
+	int leak_number = 1100; //一次模拟中，爆管发生次数
+	int sim_number = 100;  //模拟数量
+	int leak_scale = 1;   //爆管程度
+
+	clock_t im_begin, im_end;
+	double im_runtime;
+	im_begin = clock();
+	string pressure_file= "out/ky4/leakdata/check_normal_" + to_string(time_duration) + "_" + to_string(time_step) + ".csv";
+	pipe.load_normal_pressure_data(pressure_file);
+	im_end = clock();
+	im_runtime = (double)(im_end - im_begin) / 1000;
+	cout << "runtime:" << im_runtime << "s" << endl;
+
+	for (int i = 1; i <= sim_number; i++)
+	{
+		leak_scale = 50;
+		//if (i == 1)leak_scale = 5;
+		//else if (i == 2)leak_scale = 10;
+		//else if (i == 3)leak_scale = 50;
+		//else if (i == 4)leak_scale = 100;
+		
+		clock_t this_time;
+		this_time = clock();
+		string str_this_time = to_string(this_time);
+		char* str_time = (char*)str_this_time.data();
+
+		string str1 = "out/ky4/leakdata/leak_" + str_this_time + "(" + to_string(leak_scale) + ")";
+		string str2 = str1 + "/random_leak_inf.csv";
+		char* leak_inf_file = (char*)str2.data();
+
+		string normal_pressure = "out/ky4/leakdata/check_normal_"+to_string(time_duration)+"_"+to_string(time_step)+".csv";
+		string out_file = "out/ky4/leakdata/leak_" + str_this_time +"("+to_string(leak_scale)+")"+ ".csv";
+
+		LPCSTR   path = str1.c_str();
+		CreateDirectory(path, NULL); //如果文件夹FileManege不存在，则创建。
+
+		pipe.random_leak_node(pipe_inf, leak_inf_file, leak_number);
+
+		//if(i==1)
+		//{
+		//	cout << endl << i << "/" << sim_number << "..." << endl;
+			//cout << endl << i << "/" << sim_number << "..." << endl;
+			//clock_t sim_begin, sim_end;
+			//double sim_runtime;
+			//sim_begin = clock();
+		//	pipe.get_burstdata(out_file, check_point, leak_inf_file, normal_pressure, true, leak_scale);
+			//sim_end = clock();
+			//sim_runtime = (double)(sim_end - sim_begin) / 1000;
+			//cout << "runtime:" << sim_runtime << "s" << endl;
+		//}
+		//else 
+		//{
+			cout << endl << i << "/" << sim_number << "..." << endl;
+			clock_t sim_begin, sim_end;
+			double sim_runtime;
+			sim_begin = clock();
+			pipe.get_burstdata(out_file, check_point, leak_inf_file, normal_pressure, false, leak_scale);\
+			sim_end = clock();
+			sim_runtime = (double)(sim_end - sim_begin) / 1000;
+			cout << "runtime:" << sim_runtime << "s" << endl;
+		//}
+	}
+}
+
+void gettimepattern(char* inputfile, char* cluster_file)
+{
+	char* Inputfile = inputfile;
+	char* check_point = "out/ky4/check_point.csv";
+	char *pipe_inf = "out/ky4/pipe_cluster.csv";
+	char* leak_inf_file = "out/ky4/random_leak.csv";
+	char* normal_pressure = "out/ky4/check_normal.csv";
+	Simpipeleak pipe(Inputfile);
+	pipe.set_timeparam(600, 15552000);//设置时间步长为10min；周期为150天
+	//pipe.set_timeparam(3600, 86400);
+	pipe.initialize();
+
+	pipe.gettimepattern();
 }
 
 int main()
@@ -165,6 +241,6 @@ int main()
 	//test2(Inputfile,cluster_file);
 	//test3(Inputfile, cluster_file);
 	test4(Inputfile, cluster_file);
-
+	//gettimepattern(Inputfile, cluster_file);
 	
 }
